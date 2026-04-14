@@ -135,15 +135,6 @@ print(pd.DataFrame({
     'Coefficient' : model.params.round(3),
     'P-value'     : model.pvalues.round(3)
 }))
-
-print("\n=== Regression Results ===")
-print(f"N = {int(model.nobs)},  R-squared = {model.rsquared:.3f}")
-print()
-print(pd.DataFrame({
-    'Coefficient' : model.params.round(3),
-    'P-value'     : model.pvalues.round(3)
-}))
-
 # ── 10. VISUALISATION ──────────────────────────────────────
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 fig.suptitle('Verification Stringency vs State Participation',
@@ -198,5 +189,4 @@ print("\nPlot saved as verification_analysis.png")
 6. Built and interpreted an OLS regression with controls
 7. Produced a scatter plot visualisation
 8. Identified and corrected coding errors along the way
-9. Interpreted results honestly including limitations
 '''
