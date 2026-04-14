@@ -1,4 +1,5 @@
 import matplotlib
+from matplotlib.lines import Line2D
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -116,6 +117,34 @@ corr, pval = spearmanr(multi['total_stringency'],
                         multi['nr_states_parties_total'])
 print(f"\nSpearman r = {corr:.3f}, p = {pval:.3f} (multilateral, n={len(multi)})")
 
+# ── WEAPON TYPE CONFOUNDER ANALYSIS ───────────────────────
+
+print("\n=== Mean stringency by weapon type ===")
+print(multi.groupby('is_nuclear')[
+    ['total_stringency', 'nr_states_parties_total']
+].mean().round(2).rename(index={0: 'Non-nuclear', 1: 'Nuclear'}))
+
+print()
+print(multi.groupby('is_conventional')[
+    ['total_stringency', 'nr_states_parties_total']
+].mean().round(2).rename(index={0: 'Non-conventional', 1: 'Conventional'}))
+
+# Correlation within nuclear treaties only
+nuclear    = multi[multi['is_nuclear'] == 1]
+non_nuclear = multi[multi['is_nuclear'] == 0]
+
+if len(nuclear) > 4:
+    r_nuc, p_nuc = spearmanr(nuclear['total_stringency'],
+                              nuclear['nr_states_parties_total'])
+    print(f"\nNuclear treaties only (n={len(nuclear)}):     "
+          f"r = {r_nuc:.3f}, p = {p_nuc:.3f}")
+
+if len(non_nuclear) > 4:
+    r_non, p_non = spearmanr(non_nuclear['total_stringency'],
+                              non_nuclear['nr_states_parties_total'])
+    print(f"Non-nuclear treaties (n={len(non_nuclear)}):  "
+          f"r = {r_non:.3f}, p = {p_non:.3f}")
+
 # ── 9. REGRESSION ──────────────────────────────────────────
 # Fill missing weapons data
 multi['n_weapon_items'] = multi['n_weapon_items'].fillna(0)
@@ -177,16 +206,102 @@ axes[1].set_title(f'Multilateral Only (n={len(multi)})\nr={corr:.2f}, p={pval:.3
 axes[1].legend()
 
 plt.tight_layout()
-plt.savefig('verification_analysis.png', dpi=150)
-print("\nPlot saved as verification_analysis.png")
+plt.savefig('verification_analysis_scatter.png', dpi=150)
+print("\nPlot saved as verification_analysis_scatter.png")
+
+# Replace your current figure with a 3-panel version
+fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+fig.suptitle('Verification Stringency vs State Participation',
+             fontsize=13, fontweight='bold')
+
+# Plot 1 — All treaties bilateral vs multilateral (same as before)
+axes[0].scatter(
+    sample[sample['is_bilateral']==0]['total_stringency'],
+    sample[sample['is_bilateral']==0]['nr_states_parties_total'],
+    color='steelblue', label='Multilateral', alpha=0.7, s=70
+)
+axes[0].scatter(
+    sample[sample['is_bilateral']==1]['total_stringency'],
+    sample[sample['is_bilateral']==1]['nr_states_parties_total'],
+    color='tomato', label='Bilateral', alpha=0.7, s=70
+)
+axes[0].set_xlabel('Total Verification Stringency')
+axes[0].set_ylabel('Number of State Parties')
+axes[0].set_title('All Treaties\n(bilateral vs multilateral)')
+axes[0].legend()
+
+# Plot 2 — Multilateral only with trend line (same as before)
+x = multi['total_stringency']
+y = multi['nr_states_parties_total']
+axes[1].scatter(x, y, color='steelblue', alpha=0.7, s=70)
+m, b = np.polyfit(x, y, 1)
+axes[1].plot(sorted(x), [m*xi + b for xi in sorted(x)],
+             color='tomato', linewidth=1.5, linestyle='--', label='Trend')
+for _, row in multi.iterrows():
+    axes[1].annotate(str(int(row['agreement_id'])),
+                     (row['total_stringency'], row['nr_states_parties_total']),
+                     fontsize=7, alpha=0.6)
+axes[1].set_xlabel('Total Verification Stringency')
+axes[1].set_ylabel('Number of State Parties')
+axes[1].set_title(f'Multilateral Only (n={len(multi)})\n'
+                  f'r={corr:.2f}, p={pval:.3f}')
+axes[1].legend()
+
+# Plot 3 — NEW: coloured by weapon type to show confounder
+colors = multi.apply(
+    lambda r: 'gold'      if r['is_nuclear']      == 1
+         else 'seagreen'  if r['is_conventional'] == 1
+         else 'mediumpurple',
+    axis=1
+)
+
+axes[2].scatter(
+    multi['total_stringency'],
+    multi['nr_states_parties_total'],
+    c=colors, alpha=0.8, s=80
+)
+
+# Manual legend
+
+legend_elements = [
+    Line2D([0], [0], marker='o', color='w', markerfacecolor='gold',
+           markersize=9, label='Nuclear'),
+    Line2D([0], [0], marker='o', color='w', markerfacecolor='seagreen',
+           markersize=9, label='Conventional'),
+    Line2D([0], [0], marker='o', color='w', markerfacecolor='mediumpurple',
+           markersize=9, label='Other')
+]
+axes[2].legend(handles=legend_elements)
+
+for _, row in multi.iterrows():
+    axes[2].annotate(str(int(row['agreement_id'])),
+                     (row['total_stringency'], row['nr_states_parties_total']),
+                     fontsize=7, alpha=0.6)
+
+axes[2].set_xlabel('Total Verification Stringency')
+axes[2].set_ylabel('Number of State Parties')
+axes[2].set_title('Multilateral — by Weapon Type\n(confounder check)')
+
+plt.tight_layout()
+plt.savefig('verification_analysis_fig.png', dpi=150)
+print("Plot saved as verification_analysis_fig.png")
 
 '''
-1. Loaded and explored 3 datasets
-2. Built a verification stringency index from scratch
-3. Created weapon type control variables from messy text
-4. Merged everything into one clean analysis dataset
-5. Ran correlation analysis with Spearman r
-6. Built and interpreted an OLS regression with controls
-7. Produced a scatter plot visualisation
-8. Identified and corrected coding errors along the way
+1. Load agreement info, vercom, and weapons/facilities CSVs from data/.
+2. Build per-row mechanism stringency (sum of score columns), aggregate to treaty-level
+   n_mechanisms, total_stringency, mean_stringency.
+3. Aggregate weapons per treaty (n_weapon_items, total_bans over ban_* columns).
+4. Flag is_nuclear / is_conventional from weapons_items text; spot-check known agreement_ids.
+5. Left-merge onto info; keep treaties with stringency and nr_states_parties_total;
+   split bilateral vs multilateral for analysis.
+6. Print sample sizes, weapons coverage, and describe(); Spearman (stringency vs parties)
+   on multilateral treaties.
+7. Confounder pass: group means by nuclear/conventional; Spearman within nuclear /
+   non-nuclear subsamples when n > 4.
+8. OLS on multilateral: parties ~ stringency + type flags + n_weapon_items + year;
+   missing weapons fields filled with 0.
+9. Save verification_analysis_scatter.png (2-panel) and verification_analysis_fig.png
+   (3-panel, multilateral coloured by weapon-type legend).
+10. Small n, regex-only type flags (e.g. misses some CBW labels), and zero-imputed
+    weapons rows limit causal claims.
 '''
