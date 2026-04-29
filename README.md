@@ -1,69 +1,49 @@
-# AMC Research Sprint: Arms Control Governance and AI
+# AMC Research Sprint — Challenge 2 
 
-**Dates:** April 13-14, 2026  
+**Challenge:** Does verification deter participation?  
+**Dates:** April 13–14, 2026  
 **Organizers:** Sophia Hatz (Uppsala University / Alva Myrdal Centre) & Amritanshu Prasad
+**Researchers:** Zahraa Kapasi & Deneille Guiseppi
 
-## Overview
+This repository contains **Challenge 2** only: empirical work on whether verification stringency relates to treaty membership (state party counts), using the Alva Myrdal Centre Arms Control Agreement Database (V2).
 
-This repository contains research challenges and datasets for the AMC Research Sprint. Teams of 2-4 participants will work over two days to produce empirical analyses using the Alva Myrdal Centre Arms Control Agreement Database (V2).
+- **Part A (empirical):** Required — see [`challenges/02_verification_participation.md`](challenges/02_verification_participation.md) and [`challenges/overview.md`](challenges/overview.md).
+- **Part B (optional):** AI governance extension described in the challenge brief.
 
-Each challenge has two parts:
-
-- **Part A (Empirical):** Data analysis using AMC datasets. This is the core deliverable.
-- **Part B (AI Governance Extension, optional):** Participants draw analogies between their empirical findings and current debates in AI governance. Teams that attempt Part B should explain their reasoning (e.g., identifying analogous governance structures, transferable design principles).
-
-## Repository Structure
+## Repository structure
 
 ```
-├── challenges/          # 10 research challenges with analysis plans
-│   ├── overview.md      # Summary table and sprint logistics
-│   └── 01-10            # Individual challenge specifications
-├── data/                # AMC datasets (CSV) and codebook
-│   ├── README.md        # Dataset descriptions and column reference
-│   └── codebook/        # Full variable documentation (86-page PDF)
-├── examples/            # Starter code for loading and exploring data
-├── SETUP.md             # Python, Git, and environment setup guide
-└── requirements.txt     # Python package dependencies
+├── challenges/              # Challenge 2 specification and overview
+├── data/                    # AMC datasets (CSV) and codebook
+├── examples/                # Starter script for loading and exploring data
+├── data_analysis.py         # Main analysis: stringency vs participation
+├── SETUP.md                 # Python, Git, and environment setup
+└── requirements.txt         # Python dependencies
 ```
 
-## Getting Started
+## Getting started
 
-**New to Python or Git?** See [`SETUP.md`](SETUP.md) for installation and setup instructions.
+**New to Python or Git?** See [`SETUP.md`](SETUP.md).
 
-1. Browse [`challenges/overview.md`](challenges/overview.md) for the full list of challenges
-2. Read the [`data/README.md`](data/README.md) for dataset descriptions
-3. Pick a challenge and review its specification in `challenges/`
-4. Run `pip install -r requirements.txt` to install dependencies
-5. Use the starter code in `examples/` to load the data
-
-**Note:** The CSV files use `latin-1` encoding. See [`data/README.md`](data/README.md) for details.
+1. Read [`challenges/02_verification_participation.md`](challenges/02_verification_participation.md).
+2. Read [`data/README.md`](data/README.md) for dataset descriptions and encoding (`latin-1` for most CSVs).
+3. Run `pip install -r requirements.txt`.
+4. Run `python examples/getting_started.py` for a quick data tour, or `python data_analysis.py` for the full analysis (writes PNG figures in the repo root).
 
 ## Datasets
 
-The AMC Arms Control Agreement Database (V2) contains structured data on international arms control agreements, covering verification mechanisms, compliance architectures, weapons categories, and participation patterns.
-
 | Dataset | Rows | Description |
 |---------|------|-------------|
-| `agreement_info` | 128 | Core agreement metadata, dates, participation, compliance mechanism flags |
-| `vercom` | 99 | Verified compliance mechanisms (inspectors, access, triggers) |
+| `agreement_info` | 128 | Metadata, dates, participation, compliance flags |
+| `vercom` | 99 | Verified compliance mechanisms |
 | `demcom` | 136 | Demonstrated compliance mechanisms |
 | `consultation` | 159 | Consultation mechanisms |
-| `weapons_facilities` | 434 | Weapons types, lifecycle restrictions, categories |
+| `weapons_facilities` | 434 | Weapons types and restrictions |
 | `agreement_associations` | 137 | Links between related agreements |
 
 Full codebook: [`data/codebook/amc_agreementdatasets_codebook.pdf`](data/codebook/amc_agreementdatasets_codebook.pdf)
 
-## Deliverables
-
-Teams choose their preferred output format:
-
-- Data visualization (chart, map, or interactive)
-- 1-page policy brief
-- Blog post
-
-All teams should produce a cleaned, documented dataset and statistical analysis for Part A.
-
-## Data Access
+## Data access
 
 The AMC datasets are shared for sprint participants only. Do not redistribute without permission from the Alva Myrdal Centre for Nuclear Disarmament, Uppsala University.
 

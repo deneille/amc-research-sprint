@@ -72,6 +72,16 @@ On Mac/Linux you may need `python3` instead of `python`.
 
 This loads all datasets, prints summary statistics, and saves a plot to `overview_plots.png`.
 
+## Running the Challenge 2 analysis
+
+From the repo directory (after `pip install -r requirements.txt`):
+
+```bash
+python data_analysis.py
+```
+
+This runs the verification-vs-participation models and saves several `verification_analysis_*.png` figures in the current directory.
+
 ## Loading the data
 
 The CSV files need a specific encoding parameter in Python:

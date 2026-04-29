@@ -22,6 +22,6 @@ venv/
 Thumbs.db
 
 # Output
-*.png
+# *.png
 *.html
 output/
