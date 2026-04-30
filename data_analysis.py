@@ -1,10 +1,10 @@
 """
 Challenge 2: verification stringency vs state participation (AMC V2).
 Spec: challenges/02_verification_participation.md — run from repo root.
-Outputs: verification_analysis_*.png
+Prints analysis to stdout; saves verification_analysis_n59_vs_n18.png and
+verification_analysis_multilateral_overlay.png in the repo root.
 """
 import matplotlib
-from matplotlib.lines import Line2D
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -50,7 +50,17 @@ vercom_agg = vercom.groupby('agreement_id').agg(
     mean_stringency  = ('mechanism_stringency', 'mean')
 ).reset_index()
 
-# ── 2B. RUBRIC-BASED STRINGENCY (5 DIMENSIONS) ─────────────
+# ── 2B. RUBRIC-BASED STRINGENCY (five components → rubric_stringency_total) ─
+# d1 intrusiveness — How invasive verification is: onsite access flags in vercom,
+#   plus trigger/type/category text (challenge-like vs remote-only vs none).
+# d2 reporting — Declarations / timelines in agreement info, boosted if independent
+#   inspection (d4==2) or timed reporting; also text hits for report-like mechanisms.
+# d3 enforcement — Escalation architecture: consultation vs demonstrated compliance vs
+#   association bodies (numeric fields in agreement info).
+# d4 independence — Who inspects: international/independent vs joint/committee vs none,
+#   from inspector text fields in vercom (regex on lowercased strings).
+# d5 scope — Treaty breadth on weapons data: counts of listed items and ban columns,
+#   not derived from verification wording.
 def _safe_text(value):
     if pd.isna(value):
         return ""
@@ -59,7 +69,9 @@ def _safe_text(value):
 def _contains_any(text, patterns):
     return any(re.search(pat, text) for pat in patterns)
 
+
 def _score_intrusiveness(group):
+    # d1: 0 none, 1 remote-only triggers, 2 any access, 3 challenge-like + access
     access_cols = [
         'verified_compliance_mechanism_area_access',
         'verified_compliance_mechanism_facility_access',
@@ -167,7 +179,7 @@ df = info.merge(vercom_agg,  on='agreement_id', how='left')
 df = df.merge(weapons_agg,   on='agreement_id', how='left')
 df = df.merge(rubric_vercom, on='agreement_id', how='left')
 
-# Dimension 2 — Reporting obligations (0-3)
+# d2 reporting — 0 none … 3 strongest: agreement info fields + has_reporting_mech + d4 for top bin
 info_reporting_required = pd.to_numeric(df['general_infromation_keeping'], errors='coerce').fillna(0)
 info_reporting_timed = pd.to_numeric(df['general_information_keeping_timeline'], errors='coerce').fillna(0)
 has_reporting_mech = pd.to_numeric(df['has_reporting_mechanism'], errors='coerce').fillna(0)
@@ -182,7 +194,6 @@ df['d2_reporting'] = np.select(
     default=0
 )
 
-# Dimension 3 — Enforcement mechanism (0-3)
 consultation = pd.to_numeric(df['consultation_mechanism'], errors='coerce').fillna(0)
 demonstrated = pd.to_numeric(df['demonstrated_compliance_mechanism'], errors='coerce').fillna(0)
 assoc_est = pd.to_numeric(df['agreement_association_established'], errors='coerce').fillna(0)
@@ -198,7 +209,7 @@ df['d3_enforcement'] = np.select(
     default=0
 )
 
-# Dimension 5 — Scope of declared items (0-2)
+# d5 scope — 0 no items/bans, 1 some, 2 many items or bans (thresholds on weapons table)
 scope_items = pd.to_numeric(df['n_weapon_items'], errors='coerce').fillna(0)
 scope_bans = pd.to_numeric(df['total_bans'], errors='coerce').fillna(0)
 
@@ -270,26 +281,25 @@ def run_subset_analysis(subset, label):
         print(f"Non-nuclear only (n={len(non_nuclear)}): r = {r_non:.3f}, p = {p_non:.3f}")
 
     if len(subset) >= 40:
-        model_specs = [
-            ("Model 1 (Baseline)", 'nr_states_parties_total ~ rubric_stringency_total'),
-            ("Model 2 (Core Confounders)", 'nr_states_parties_total ~ rubric_stringency_total + year + is_nuclear'),
-            ("Model 3 (Scope Robustness)", 'nr_states_parties_total ~ rubric_stringency_total + year + is_nuclear + n_weapon_items'),
-            ("Model 4 (Institutional Form)", 'nr_states_parties_total ~ rubric_stringency_total + year + is_nuclear + n_weapon_items + C(format_clean)'),
-            ("Model 5 (Log Outcome)", 'log_parties ~ rubric_stringency_total + year + is_nuclear + n_weapon_items')
+        ols_specs = [
+            ("Baseline (rubric only)", 'nr_states_parties_total ~ rubric_stringency_total'),
+            ("+ confounders: year, is_nuclear", 'nr_states_parties_total ~ rubric_stringency_total + year + is_nuclear'),
+            ("+ confounders + n_weapon_items", 'nr_states_parties_total ~ rubric_stringency_total + year + is_nuclear + n_weapon_items'),
+            ("Log outcome + confounders + n_weapon_items", 'log_parties ~ rubric_stringency_total + year + is_nuclear + n_weapon_items'),
         ]
     else:
-        model_specs = [
-            ("Model 1 (Baseline)", 'nr_states_parties_total ~ rubric_stringency_total'),
-            ("Model 2 (Core Confounders)", 'nr_states_parties_total ~ rubric_stringency_total + year + is_nuclear'),
-            ("Model 3 (Log Outcome)", 'log_parties ~ rubric_stringency_total + year + is_nuclear')
+        ols_specs = [
+            ("Baseline (rubric only)", 'nr_states_parties_total ~ rubric_stringency_total'),
+            ("+ confounders: year, is_nuclear", 'nr_states_parties_total ~ rubric_stringency_total + year + is_nuclear'),
+            ("Log outcome + confounders", 'log_parties ~ rubric_stringency_total + year + is_nuclear'),
         ]
 
-    print("\nModel sequence")
-    for model_name, formula in model_specs:
-        model = smf.ols(formula, data=subset).fit()
-        coef = model.params.get('rubric_stringency_total', np.nan)
-        pval = model.pvalues.get('rubric_stringency_total', np.nan)
-        print(f"{model_name}: coef = {coef:.3f}, p = {pval:.3f}, R2 = {model.rsquared:.3f}, N = {int(model.nobs)}")
+    print("\nOLS (progressive confounders)")
+    for spec_label, formula in ols_specs:
+        fitted = smf.ols(formula, data=subset).fit()
+        coef = fitted.params.get('rubric_stringency_total', np.nan)
+        pval = fitted.pvalues.get('rubric_stringency_total', np.nan)
+        print(f"{spec_label}: coef = {coef:.3f}, p = {pval:.3f}, R2 = {fitted.rsquared:.3f}, N = {int(fitted.nobs)}")
 
     if len(subset) < 25:
         # Small-sample fallback: permutation and bootstrap diagnostics
@@ -358,237 +368,81 @@ def run_subset_analysis(subset, label):
 # Run both sample definitions side-by-side
 rubric_corr, rubric_pval = run_subset_analysis(multi, "Multilateral (all)")
 _ = run_subset_analysis(multi_with_verif, "Multilateral (verification-coded >0)")
-# ── 10. VISUALISATION ──────────────────────────────────────
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-fig.suptitle('Verification Stringency vs State Participation',
-             fontsize=13, fontweight='bold')
-
-# Plot 1 — All treaties coloured by type
-axes[0].scatter(
-    sample[sample['is_bilateral']==0]['rubric_stringency_total'],
-    sample[sample['is_bilateral']==0]['nr_states_parties_total'],
-    color='steelblue', label='Multilateral', alpha=0.7, s=70
-)
-axes[0].scatter(
-    sample[sample['is_bilateral']==1]['rubric_stringency_total'],
-    sample[sample['is_bilateral']==1]['nr_states_parties_total'],
-    color='tomato', label='Bilateral', alpha=0.7, s=70
-)
-axes[0].set_xlabel('Rubric Verification Stringency')
-axes[0].set_ylabel('Number of State Parties')
-axes[0].set_title('All Treaties')
-axes[0].legend()
-
-# Plot 2 — Multilateral only with trend line
-x = multi['rubric_stringency_total']
-y = multi['nr_states_parties_total']
-
-axes[1].scatter(x, y, color='steelblue', alpha=0.7, s=70)
-
-m, b = np.polyfit(x, y, 1)
-axes[1].plot(sorted(x), [m*xi + b for xi in sorted(x)],
-             color='tomato', linewidth=1.5, linestyle='--', label='Trend')
-
-for _, row in multi.iterrows():
-    axes[1].annotate(str(int(row['agreement_id'])),
-                     (row['rubric_stringency_total'], row['nr_states_parties_total']),
-                     fontsize=7, alpha=0.6)
-
-axes[1].set_xlabel('Rubric Verification Stringency')
-axes[1].set_ylabel('Number of State Parties')
-axes[1].set_title(f'Multilateral Only (n={len(multi)})\nr={rubric_corr:.2f}, p={rubric_pval:.3f}')
-axes[1].legend()
-
-plt.tight_layout()
-plt.savefig('verification_analysis_scatter.png', dpi=150)
-print("\nPlot saved as verification_analysis_scatter.png")
-
-# Replace your current figure with a 3-panel version
-fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-fig.suptitle('Verification Stringency vs State Participation',
-             fontsize=13, fontweight='bold')
-
-# Plot 1 — All treaties bilateral vs multilateral (same as before)
-axes[0].scatter(
-    sample[sample['is_bilateral']==0]['rubric_stringency_total'],
-    sample[sample['is_bilateral']==0]['nr_states_parties_total'],
-    color='steelblue', label='Multilateral', alpha=0.7, s=70
-)
-axes[0].scatter(
-    sample[sample['is_bilateral']==1]['rubric_stringency_total'],
-    sample[sample['is_bilateral']==1]['nr_states_parties_total'],
-    color='tomato', label='Bilateral', alpha=0.7, s=70
-)
-axes[0].set_xlabel('Rubric Verification Stringency')
-axes[0].set_ylabel('Number of State Parties')
-axes[0].set_title('All Treaties\n(bilateral vs multilateral)')
-axes[0].legend()
-
-# Plot 2 — Multilateral only with trend line (same as before)
-x = multi['rubric_stringency_total']
-y = multi['nr_states_parties_total']
-axes[1].scatter(x, y, color='steelblue', alpha=0.7, s=70)
-m, b = np.polyfit(x, y, 1)
-axes[1].plot(sorted(x), [m*xi + b for xi in sorted(x)],
-             color='tomato', linewidth=1.5, linestyle='--', label='Trend')
-for _, row in multi.iterrows():
-    axes[1].annotate(str(int(row['agreement_id'])),
-                     (row['rubric_stringency_total'], row['nr_states_parties_total']),
-                     fontsize=7, alpha=0.6)
-axes[1].set_xlabel('Rubric Verification Stringency')
-axes[1].set_ylabel('Number of State Parties')
-axes[1].set_title(f'Multilateral Only (n={len(multi)})\n'
-                  f'r={rubric_corr:.2f}, p={rubric_pval:.3f}')
-axes[1].legend()
-
-# Plot 3 — NEW: coloured by weapon type to show confounder
-colors = multi.apply(
-    lambda r: 'gold'      if r['is_nuclear']      == 1
-         else 'seagreen'  if r['is_conventional'] == 1
-         else 'mediumpurple',
-    axis=1
-)
-
-axes[2].scatter(
-    multi['rubric_stringency_total'],
-    multi['nr_states_parties_total'],
-    c=colors, alpha=0.8, s=80
-)
-
-# Manual legend
-
-legend_elements = [
-    Line2D([0], [0], marker='o', color='w', markerfacecolor='gold',
-           markersize=9, label='Nuclear'),
-    Line2D([0], [0], marker='o', color='w', markerfacecolor='seagreen',
-           markersize=9, label='Conventional'),
-    Line2D([0], [0], marker='o', color='w', markerfacecolor='mediumpurple',
-           markersize=9, label='Other')
-]
-axes[2].legend(handles=legend_elements)
-
-for _, row in multi.iterrows():
-    axes[2].annotate(str(int(row['agreement_id'])),
-                     (row['rubric_stringency_total'], row['nr_states_parties_total']),
-                     fontsize=7, alpha=0.6)
-
-axes[2].set_xlabel('Rubric Verification Stringency')
-axes[2].set_ylabel('Number of State Parties')
-axes[2].set_title('Multilateral — by Weapon Type\n(confounder check)')
-
-plt.tight_layout()
-plt.savefig('verification_analysis_fig.png', dpi=150)
-print("Plot saved as verification_analysis_fig.png")
-
-# Dedicated figure to isolate verification-coded multilateral subset (n=18)
+# ── 10. VISUALISATION (multilateral only; no bilateral plots) ─
 subset18 = multi_with_verif.copy()
 sub_r, sub_p = spearmanr(
     subset18['rubric_stringency_total'],
     subset18['nr_states_parties_total']
 )
 
-fig, ax = plt.subplots(figsize=(8, 6))
-ax.scatter(
-    subset18['rubric_stringency_total'],
-    subset18['nr_states_parties_total'],
-    color='mediumpurple', alpha=0.8, s=85
+# Direct n=59 vs n=18 comparison: shared scales so panels are comparable
+x59 = multi['rubric_stringency_total'].to_numpy()
+y59 = multi['nr_states_parties_total'].to_numpy()
+x18cmp = subset18['rubric_stringency_total'].to_numpy()
+y18cmp = subset18['nr_states_parties_total'].to_numpy()
+x_lo = min(x59.min(), x18cmp.min()) - 0.25
+x_hi = max(x59.max(), x18cmp.max()) + 0.25
+y_lo = 0.0
+y_hi = max(y59.max(), y18cmp.max()) * 1.05
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5.5), sharey=True)
+fig.suptitle(
+    'Multilateral samples: all treaties vs verification-coded subset (same axis limits)',
+    fontsize=13, fontweight='bold'
 )
 
-sx = subset18['rubric_stringency_total']
-sy = subset18['nr_states_parties_total']
-sm, sb = np.polyfit(sx, sy, 1)
-ax.plot(
-    sorted(sx),
-    [sm * xi + sb for xi in sorted(sx)],
-    color='black', linestyle='--', linewidth=1.5, label='Trend'
-)
+ax = axes[0]
+ax.scatter(x59, y59, color='steelblue', alpha=0.7, s=65, edgecolors='white', linewidths=0.4)
+m59, b59 = np.polyfit(x59, y59, 1)
+xs59 = np.linspace(x_lo, x_hi, 50)
+ax.plot(xs59, m59 * xs59 + b59, color='tomato', linestyle='--', linewidth=2, label='OLS trend')
+ax.set_xlim(x_lo, x_hi)
+ax.set_ylim(y_lo, y_hi)
+ax.set_xlabel('Rubric verification stringency')
+ax.set_ylabel('Number of state parties')
+ax.set_title(f'All multilateral (n={len(multi)})\nSpearman r={rubric_corr:.2f}, p={rubric_pval:.3f}')
+ax.legend(loc='upper left', fontsize=8)
+ax.grid(True, alpha=0.25)
 
-for _, row in subset18.iterrows():
-    ax.annotate(
-        str(int(row['agreement_id'])),
-        (row['rubric_stringency_total'], row['nr_states_parties_total']),
-        fontsize=7, alpha=0.65
-    )
-
-ax.set_xlabel('Rubric Verification Stringency')
-ax.set_ylabel('Number of State Parties')
+ax = axes[1]
+rng_j = np.random.default_rng(42)
+x18_plot = x18cmp + rng_j.normal(0, 0.05, size=len(x18cmp))
+ax.scatter(x18_plot, y18cmp, color='darkviolet', alpha=0.85, s=85, edgecolors='white', linewidths=0.5)
+m18c, b18c = np.polyfit(x18cmp, y18cmp, 1)
+ax.plot(xs59, m18c * xs59 + b18c, color='black', linestyle='--', linewidth=2, label='OLS trend')
+ax.set_xlim(x_lo, x_hi)
+ax.set_ylim(y_lo, y_hi)
+ax.set_xlabel('Rubric verification stringency (x-jitter for overlap)')
 ax.set_title(
-    f'Verification-Coded Multilateral Treaties Only (n={len(subset18)})\n'
-    f'r={sub_r:.2f}, p={sub_p:.3f}'
+    f'Verification-coded only (n={len(subset18)})\nSpearman r={sub_r:.2f}, p={sub_p:.3f}'
 )
-ax.legend()
-plt.tight_layout()
-plt.savefig('verification_analysis_verification_coded_only.png', dpi=150)
-print("Plot saved as verification_analysis_verification_coded_only.png")
-
-# Enhanced visual pack: clearer comparison between n=59 and n=18
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-fig.suptitle('Enhanced Verification-Participation Visual Diagnostics', fontsize=14, fontweight='bold')
-
-# Panel A: n=59 raw scale
-ax = axes[0, 0]
-x_all = multi['rubric_stringency_total'].to_numpy()
-y_all = multi['nr_states_parties_total'].to_numpy()
-ax.scatter(x_all, y_all, color='steelblue', alpha=0.65, s=60)
-m_all, b_all = np.polyfit(x_all, y_all, 1)
-ax.plot(sorted(x_all), [m_all * xi + b_all for xi in sorted(x_all)],
-        color='tomato', linestyle='--', linewidth=1.5)
-ax.set_title(f'All Multilateral (n={len(multi)})\nRaw scale')
-ax.set_xlabel('Rubric Verification Stringency')
-ax.set_ylabel('Number of State Parties')
-ax.text(0.03, 0.96, f"Spearman r={rubric_corr:.2f}, p={rubric_pval:.3f}",
-        transform=ax.transAxes, va='top', fontsize=9,
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
-
-# Panel B: n=59 log scale for readability
-ax = axes[0, 1]
-y_all_log = np.log1p(y_all)
-ax.scatter(x_all, y_all_log, color='steelblue', alpha=0.65, s=60)
-m_log, b_log = np.polyfit(x_all, y_all_log, 1)
-ax.plot(sorted(x_all), [m_log * xi + b_log for xi in sorted(x_all)],
-        color='tomato', linestyle='--', linewidth=1.5)
-ax.set_title(f'All Multilateral (n={len(multi)})\nLog scale: log1p(parties)')
-ax.set_xlabel('Rubric Verification Stringency')
-ax.set_ylabel('log1p(Number of State Parties)')
-
-# Panel C: n=18 raw with jitter to reduce overlap
-ax = axes[1, 0]
-rng_plot = np.random.default_rng(42)
-x18 = subset18['rubric_stringency_total'].to_numpy()
-y18 = subset18['nr_states_parties_total'].to_numpy()
-x18_jitter = x18 + rng_plot.normal(0, 0.04, size=len(x18))
-ax.scatter(x18_jitter, y18, color='mediumpurple', alpha=0.8, s=75)
-m18, b18 = np.polyfit(x18, y18, 1)
-ax.plot(sorted(x18), [m18 * xi + b18 for xi in sorted(x18)],
-        color='black', linestyle='--', linewidth=1.5)
-ax.set_title(f'Verification-coded only (n={len(subset18)})\nRaw scale + x-jitter')
-ax.set_xlabel('Rubric Verification Stringency')
-ax.set_ylabel('Number of State Parties')
-ax.text(0.03, 0.96, f"Spearman r={sub_r:.2f}, p={sub_p:.3f}",
-        transform=ax.transAxes, va='top', fontsize=9,
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
-
-# Panel D: n=18 log scale + permutation note
-ax = axes[1, 1]
-y18_log = np.log1p(y18)
-ax.scatter(x18_jitter, y18_log, color='mediumpurple', alpha=0.8, s=75)
-m18_log, b18_log = np.polyfit(x18, y18_log, 1)
-ax.plot(sorted(x18), [m18_log * xi + b18_log for xi in sorted(x18)],
-        color='black', linestyle='--', linewidth=1.5)
-ax.set_title(f'Verification-coded only (n={len(subset18)})\nLog scale: log1p(parties)')
-ax.set_xlabel('Rubric Verification Stringency')
-ax.set_ylabel('log1p(Number of State Parties)')
-
-# Quick permutation p-value (small-sample visual annotation)
-n_perm_vis = 2000
-perm_rs_vis = np.empty(n_perm_vis)
-for i in range(n_perm_vis):
-    perm_rs_vis[i], _ = spearmanr(x18, rng_plot.permutation(y18))
-perm_p_vis = np.mean(np.abs(perm_rs_vis) >= abs(sub_r))
-ax.text(0.03, 0.96, f"Permutation p={perm_p_vis:.3f}",
-        transform=ax.transAxes, va='top', fontsize=9,
-        bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+ax.legend(loc='upper left', fontsize=8)
+ax.grid(True, alpha=0.25)
 
 plt.tight_layout()
-plt.savefig('verification_analysis_enhanced.png', dpi=150)
-print("Plot saved as verification_analysis_enhanced.png")
+plt.savefig('verification_analysis_n59_vs_n18.png', dpi=150)
+print("Plot saved as verification_analysis_n59_vs_n18.png")
+
+# Overlay: full multilateral (faint) + verification-coded (emphasized), one frame
+fig, ax = plt.subplots(figsize=(9, 6))
+ax.scatter(
+    x59, y59, color='steelblue', alpha=0.35, s=42, label=f'All multilateral (n={len(multi)})', zorder=1
+)
+ax.scatter(
+    x18cmp, y18cmp, color='darkviolet', alpha=0.95, s=110,
+    edgecolors='black', linewidths=0.6, label=f'Verification-coded (n={len(subset18)})', zorder=3
+)
+ax.plot(xs59, m59 * xs59 + b59, color='tomato', linestyle='--', linewidth=2,
+        label=f'Trend n={len(multi)} (r={rubric_corr:.2f})', zorder=2)
+ax.plot(xs59, m18c * xs59 + b18c, color='black', linestyle='-', linewidth=2,
+        label=f'Trend n={len(subset18)} (r={sub_r:.2f})', zorder=2)
+ax.set_xlim(x_lo, x_hi)
+ax.set_ylim(y_lo, y_hi)
+ax.set_xlabel('Rubric verification stringency')
+ax.set_ylabel('Number of state parties')
+ax.set_title('Overlay: verification-coded treaties within full multilateral cloud')
+ax.legend(loc='upper left', fontsize=9)
+ax.grid(True, alpha=0.25)
+plt.tight_layout()
+plt.savefig('verification_analysis_multilateral_overlay.png', dpi=150)
+print("Plot saved as verification_analysis_multilateral_overlay.png")
