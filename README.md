@@ -1,4 +1,5 @@
 # AMC Research Sprint — Challenge 2 
+## Title - Verification Stringency and Treaty Participation: Rethinking oversight, participation, and AI governance
 
 **Challenge:** Does verification deter participation?  
 **Dates:** April 13–14, 2026  
