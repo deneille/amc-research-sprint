@@ -1,5 +1,5 @@
 # AMC Research Sprint — Challenge 2 
-## Title - Verification Stringency and Treaty Participation: Rethinking oversight, participation, and AI governance
+## Title - Verification Stringency and Treaty Participation in Arms Control Agreements
 
 **Researchers:** Zahraa Kapasi & Deneille Guiseppi
 
