@@ -46,8 +46,3 @@ Full codebook: [`data/codebook/amc_agreementdatasets_codebook.pdf`](data/codeboo
 ## Data access
 
 The AMC datasets are shared for sprint participants only. Do not redistribute without permission from the Alva Myrdal Centre for Nuclear Disarmament, Uppsala University.
-
-## Contact
-
-- Sophia Hatz: sophia.hatz@pcr.uu.se
-- Amritanshu Prasad: amritanshuprasad2001@gmail.com
