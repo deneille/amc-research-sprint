@@ -1,9 +1,6 @@
 # AMC Research Sprint — Challenge 2 
 ## Title - Verification Stringency and Treaty Participation: Rethinking oversight, participation, and AI governance
 
-**Challenge:** Does verification deter participation?  
-**Dates:** April 13–14, 2026  
-**Organizers:** Sophia Hatz (Uppsala University / Alva Myrdal Centre) & Amritanshu Prasad
 **Researchers:** Zahraa Kapasi & Deneille Guiseppi
 
 This repository contains **Challenge 2** only: empirical work on whether verification stringency relates to treaty membership (state party counts), using the Alva Myrdal Centre Arms Control Agreement Database (V2).
